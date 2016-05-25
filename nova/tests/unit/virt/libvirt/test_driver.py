@@ -4554,6 +4554,7 @@ class LibvirtConnTestCase(test.NoDBTestCase):
         with test.nested(
                 mock.patch.object(six.moves.builtins, "open",
                     mock.mock_open(read_data=theuuid)),
+                mock.patch.object(host.Host, 'get_cpu_flags'),
                 self.patch_exists(True)):
             self._test_get_guest_config_sysinfo_serial(theuuid)
 
@@ -4562,6 +4563,7 @@ class LibvirtConnTestCase(test.NoDBTestCase):
         with test.nested(
                 mock.patch.object(six.moves.builtins, "open",
                                   mock.mock_open(read_data="")),
+                mock.patch.object(host.Host, "get_cpu_flags"),
                 self.patch_exists(True)):
             self.assertRaises(exception.NovaException,
                     self._test_get_guest_config_sysinfo_serial,
@@ -5274,6 +5276,36 @@ class LibvirtConnTestCase(test.NoDBTestCase):
                 no_exist = False
                 break
         self.assertTrue(no_exist)
+
+    def test_get_guest_with_perf(self):
+        self.flags(enabled_perf_events=['cmt'], group='libvirt')
+        drvr = libvirt_driver.LibvirtDriver(fake.FakeVirtAPI(), True)
+        fakelibvirt.VIR_PERF_PARAM_CMT = True
+        drvr._cpu_flags = ['cqm']
+        instance_ref = objects.Instance(**self.test_instance)
+        image_meta = objects.ImageMeta.from_dict(self.test_image_meta)
+
+        disk_info = blockinfo.get_disk_info(CONF.libvirt.virt_type,
+                                            instance_ref,
+                                            image_meta)
+        cfg = drvr._get_guest_config(instance_ref, [],
+                                     image_meta, disk_info)
+        self.assertEqual(['cmt'], cfg.perf_events)
+
+    def test_get_guest_with_perf_unsupported(self):
+        self.flags(enabled_perf_events=['cmt'], group='libvirt')
+        drvr = libvirt_driver.LibvirtDriver(fake.FakeVirtAPI(), True)
+        fakelibvirt.VIR_PERF_PARAM_CMT = True
+        drvr._cpu_flags = []
+        instance_ref = objects.Instance(**self.test_instance)
+        image_meta = objects.ImageMeta.from_dict(self.test_image_meta)
+
+        disk_info = blockinfo.get_disk_info(CONF.libvirt.virt_type,
+                                            instance_ref,
+                                            image_meta)
+        cfg = drvr._get_guest_config(instance_ref, [],
+                                     image_meta, disk_info)
+        self.assertEqual([], cfg.perf_events)
 
     def test_xml_and_uri_no_ramdisk_no_kernel(self):
         instance_data = dict(self.test_instance)

@@ -790,6 +790,66 @@ class HostTestCase(test.NoDBTestCase):
             mock_conn().getInfo.return_value = ['zero', 'one', 'two']
             self.assertEqual('two', self.host.get_cpu_count())
 
+    def test_get_cpu_flags(self):
+        m = mock.mock_open(
+            read_data="""
+processor    : 0
+vendor_id    : GenuineIntel
+cpu family    : 6
+model        : 60
+model name    : Intel(R) Xeon(R) CPU E3-1246 v3 @ 3.50GHz
+stepping    : 3
+microcode    : 0x17
+cpu MHz        : 800.000
+cache size    : 8192 KB
+physical id    : 0
+siblings    : 8
+core id        : 0
+cpu cores    : 4
+apicid        : 0
+initial apicid    : 0
+fpu        : yes
+fpu_exception    : yes
+cpuid level    : 13
+wp        : yes
+flags        : flag1 flag2
+bogomips    : 6983.86
+clflush size    : 64
+cache_alignment    : 64
+address sizes    : 39 bits physical, 48 bits virtual
+power management:
+
+processor    : 1
+vendor_id    : GenuineIntel
+cpu family    : 6
+model        : 60
+model name    : Intel(R) Xeon(R) CPU E3-1246 v3 @ 3.50GHz
+stepping    : 3
+microcode    : 0x17
+cpu MHz        : 800.000
+cache size    : 8192 KB
+physical id    : 0
+siblings    : 8
+core id        : 1
+cpu cores    : 4
+apicid        : 2
+initial apicid    : 2
+fpu        : yes
+fpu_exception    : yes
+cpuid level    : 13
+wp        : yes
+flags        : flag1 flag2
+bogomips    : 6983.86
+clflush size    : 64
+cache_alignment    : 64
+address sizes    : 39 bits physical, 48 bits virtual
+power management:
+""")
+        flags = ['flag1', 'flag2']
+        with mock.patch(
+                "six.moves.builtins.open", m, create=True):
+            self.assertEqual(flags, self.host.get_cpu_flags())
+
     def test_get_memory_total(self):
         with mock.patch.object(host.Host, "get_connection") as mock_conn:
             mock_conn().getInfo.return_value = ['zero', 'one', 'two']

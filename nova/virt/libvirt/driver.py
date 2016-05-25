@@ -297,6 +297,13 @@ MIN_QEMU_OTHER_ARCH = {arch.S390: MIN_QEMU_S390_VERSION,
                        arch.PPC64LE: MIN_QEMU_PPC64_VERSION,
                       }
 
+LIBVIRT_PERF_EVENT_PREFIX = 'VIR_PERF_PARAM_'
+
+PERF_EVENTS_CPU_FLAG_MAPPING = {'cmt': 'cqm',
+                                'mbml': 'cqm_mbm_local',
+                                'mbmt': 'cqm_mbm_total',
+                               }
+
 
 class LibvirtDriver(driver.ComputeDriver):
     capabilities = {
@@ -372,6 +379,7 @@ class LibvirtDriver(driver.ComputeDriver):
 
         self._live_migration_flags = self._block_migration_flags = 0
         self.active_migrations = {}
+        self._cpu_flags = self._host.get_cpu_flags()
 
         # Compute reserved hugepages from conf file at the very
         # beginning to ensure any syntax error will be reported and
@@ -4148,6 +4156,30 @@ class LibvirtDriver(driver.ComputeDriver):
                 self._host.has_min_version(MIN_LIBVIRT_UEFI_VERSION) and
                 os.path.exists(DEFAULT_UEFI_LOADER_PATH[caps.host.cpu.arch]))
 
+    def _get_supported_perf_events(self):
+        supported_events = []
+        for event in CONF.libvirt.enabled_perf_events:
+            if self._supported_perf_event(event):
+                supported_events.append(event)
+        return supported_events
+
+    def _supported_perf_event(self, event):
+
+        libvirt_perf_event_name = LIBVIRT_PERF_EVENT_PREFIX + event.upper()
+
+        if not hasattr(libvirt, libvirt_perf_event_name):
+            LOG.warning(_LW("Libvirt doesn't support event type %s."),
+                        event)
+            return False
+
+        if (event in PERF_EVENTS_CPU_FLAG_MAPPING
+            and PERF_EVENTS_CPU_FLAG_MAPPING[event] not in self._cpu_flags):
+            LOG.warning(_LW("Host doesn't support report this event type %s."),
+                        event)
+            return False
+
+        return True
+
     def _configure_guest_by_virt_type(self, guest, virt_type, caps, instance,
                                       image_meta, flavor, root_device_name):
         if virt_type == "xen":
@@ -4319,6 +4351,13 @@ class LibvirtDriver(driver.ComputeDriver):
         guest.metadata.append(self._get_guest_config_meta(context,
                                                           instance))
         guest.idmaps = self._get_guest_idmaps()
+
+        # TODO(eliqiao): Remove hasattr checking after MIN_LIBVIRT_VERSION
+        # bump to 1.3.3
+        if (hasattr(libvirt, 'VIR_PERF_PARAM_CMT') and
+            len(CONF.libvirt.enabled_perf_events)) > 0:
+            for event in self._get_supported_perf_events():
+                guest.add_perf_event(event)
 
         self._update_guest_cputune(guest, flavor, virt_type)
 

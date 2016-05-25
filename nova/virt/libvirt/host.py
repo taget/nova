@@ -797,6 +797,14 @@ class Host(object):
         """Returns the total numbers of cpu in the host."""
         return self._get_hardware_info()[2]
 
+    def get_cpu_flags(self):
+        """return a list of cpu flags"""
+        with open('/proc/cpuinfo') as fp:
+            m = fp.read().split()
+        idx1 = m.index('flags')
+        idx2 = m.index(":", idx1 + 2)
+        return m[idx1 + 2:idx2 - 1]
+
     def get_memory_mb_total(self):
         """Get the total memory size(MB) of physical computer.
 

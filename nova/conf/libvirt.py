@@ -214,7 +214,11 @@ libvirt_general_opts = [
                default=1,
                help='In a realtime host context vCPUs for guest will run in '
                     'that scheduling priority. Priority depends on the host '
-                    'kernel (usually 1-99)')
+                    'kernel (usually 1-99)'),
+    cfg.ListOpt('enabled_perf_events',
+               default=[],
+               help='A event list which could be used as monitor, for example:'
+               'supported event could be cmt, mbml, mbmt'),
 ]
 
 libvirt_imagebackend_opts = [
