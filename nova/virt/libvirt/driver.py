@@ -6511,6 +6511,7 @@ class LibvirtDriver(driver.ComputeDriver):
         # Store live_migration_inbound_addr
         migrate_data.target_connect_addr = \
             CONF.libvirt.live_migration_inbound_addr
+        migrate_data.supported_perf_events = self._get_supported_perf_events()
 
         for vol in block_device_mapping:
             connection_info = vol['connection_info']

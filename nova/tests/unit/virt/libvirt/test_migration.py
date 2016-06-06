@@ -179,3 +179,30 @@ class UtilityMigrationTestCase(test.NoDBTestCase):
             doc, data, get_volume_config))
         self.assertIn('ip-1.2.3.4:3260-iqn.cde.67890.opst-lun-Z',
                       six.text_type(res))
+
+    def test_update_perf_events_xml(self):
+        data = objects.LibvirtLiveMigrateData(
+            supported_perf_events=['cmt'])
+        xml = """<domain>
+  <perf>
+    <event enabled="yes" name="cmt"/>
+    <event enabled="yes" name="mbml"/>
+  </perf>
+</domain>"""
+        doc = etree.fromstring(xml)
+        res = etree.tostring(migration._update_perf_events_xml(doc, data))
+        self.assertIn('<event enabled="yes" name="cmt"/>',
+                      six.text_type(res))
+        self.assertNotIn('<event enabled="yes" name="mbml"/>',
+                      six.text_type(res))
+
+    def test_update_perf_events_xml_add_new_events(self):
+        data = objects.LibvirtLiveMigrateData(
+            supported_perf_events=['cmt'])
+        xml = """<domain>
+</domain>"""
+        doc = etree.fromstring(xml)
+        res = etree.tostring(migration._update_perf_events_xml(doc, data))
+
+        self.assertIn('<perf><event enabled="yes" name="cmt"/></perf>',
+                      six.text_type(res))
