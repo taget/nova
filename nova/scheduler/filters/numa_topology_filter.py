@@ -37,6 +37,7 @@ class NUMATopologyFilter(filters.BaseHostFilter):
         cpu_thread_policy = [extra_specs.get('hw:cpu_thread_policy'),
                              image_props.get('hw_cpu_thread_policy')]
 
+
         if not host_topology:
             return True
 

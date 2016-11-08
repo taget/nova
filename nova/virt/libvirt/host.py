@@ -661,6 +661,7 @@ class Host(object):
         if not self._caps:
             xmlstr = self.get_connection().getCapabilities()
             LOG.info(_LI("Libvirt host capabilities %s"), xmlstr)
+
             self._caps = vconfig.LibvirtConfigCaps()
             self._caps.parse_str(xmlstr)
             # NOTE(mriedem): Don't attempt to get baseline CPU features

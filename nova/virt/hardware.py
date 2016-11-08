@@ -915,6 +915,10 @@ def _numa_fit_instance_cell(host_cell, instance_cell, limit_cell=None):
                       'Usage: %(usage)d, limit: %(limit)d',
                       {'usage': memory_usage, 'limit': cpu_limit})
             return
+        if instance_cell.l3_cache > 0 and host_cell.l3_cache_usage <= 0:
+            LOG.debug('Host cell has limitations on usable l3_cache. There are '
+                      'not enough free l3_cache to schedule this instance. ')
+            return
 
     pagesize = None
     if instance_cell.pagesize:
@@ -1039,7 +1043,35 @@ def _numa_get_mem_map_list(flavor, image_meta):
         return flavor_mem_list
 
 
-def _numa_get_constraints_manual(nodes, flavor, cpu_list, mem_list):
+def _numa_get_flavor_l3_cache_map_list(flavor):
+    hw_numa_l3_cache = []
+    extra_specs = flavor.get("extra_specs", {})
+    for cellid in range(objects.ImageMetaProps.NUMA_NODES_MAX):
+        l3cacheprop = "hw:numa_l3_cache.%d" % cellid
+        if l3cacheprop not in extra_specs:
+            break
+        hw_numa_l3_cache.append(int(extra_specs[l3cacheprop]))
+
+    if hw_numa_l3_cache:
+        return hw_numa_l3_cache
+
+
+def _numa_get_l3_cache_list(flavor, image_meta):
+    flavor_l3_cache_list = _numa_get_flavor_l3_cache_map_list(flavor)
+    # TODO(eliqiao) fix this later
+    # image_l3_cache_list = image_meta.properties.get("hw_numa_l3_cache", None)
+    image_l3_cache_list = None
+    if flavor_l3_cache_list is None:
+        return image_l3_cache_list
+    else:
+        if image_l3_cache_list is not None:
+            raise exception.ImageNUMATopologyForbidden(
+                name='hw_numa_l3_cache')
+        return flavor_l3_cache_list
+
+
+def _numa_get_constraints_manual(nodes, flavor, cpu_list, mem_list,
+                                 l3_cache_list):
     cells = []
     totalmem = 0
 
@@ -1048,6 +1080,8 @@ def _numa_get_constraints_manual(nodes, flavor, cpu_list, mem_list):
     for node in range(nodes):
         mem = mem_list[node]
         cpuset = cpu_list[node]
+        l3_cache = l3_cache_list[node]
+        l3_cache = int(l3_cache)
 
         for cpu in cpuset:
             if cpu > (flavor.vcpus - 1):
@@ -1059,9 +1093,8 @@ def _numa_get_constraints_manual(nodes, flavor, cpu_list, mem_list):
                     cpunum=cpu)
 
             availcpus.remove(cpu)
-
         cells.append(objects.InstanceNUMACell(
-            id=node, cpuset=cpuset, memory=mem))
+            id=node, cpuset=cpuset, memory=mem, l3_cache=l3_cache))
         totalmem = totalmem + mem
 
     if availcpus:
@@ -1113,15 +1146,17 @@ def _numa_get_constraints_auto(nodes, flavor):
         (flavor.memory_mb % nodes) > 0):
         raise exception.ImageNUMATopologyAsymmetric()
 
+    l3_cache = flavor.get('extra_specs', {}).get('hw:l3_cache', 5636) 
     cells = []
     for node in range(nodes):
         ncpus = int(flavor.vcpus / nodes)
         mem = int(flavor.memory_mb / nodes)
+        cache = int(l3_cache / nodes)
         start = node * ncpus
         cpuset = set(range(start, start + ncpus))
 
         cells.append(objects.InstanceNUMACell(
-            id=node, cpuset=cpuset, memory=mem))
+            id=node, cpuset=cpuset, memory=mem, l3_cache=cache))
 
     return objects.InstanceNUMATopology(cells=cells)
 
@@ -1150,6 +1185,8 @@ def _add_cpu_pinning_constraint(flavor, image_meta, numa_topology):
         'hw:cpu_thread_policy')
     image_thread_policy = image_meta.properties.get('hw_cpu_thread_policy')
 
+    l3_cache = flavor.get('extra_specs', {}).get('hw:l3_cache', 5635) 
+
     if cpu_policy == fields.CPUAllocationPolicy.SHARED:
         if flavor_thread_policy or image_thread_policy:
             raise exception.CPUThreadPolicyConfigurationInvalid()
@@ -1171,6 +1208,7 @@ def _add_cpu_pinning_constraint(flavor, image_meta, numa_topology):
                 id=0,
                 cpuset=set(range(flavor.vcpus)),
                 memory=flavor.memory_mb,
+                l3_cache=l3_cache,
                 cpu_policy=cpu_policy,
                 cpu_thread_policy=cpu_thread_policy)
         numa_topology = objects.InstanceNUMATopology(cells=[single_cell])
@@ -1212,6 +1250,7 @@ def numa_get_constraints(flavor, image_meta):
 
         cpu_list = _numa_get_cpu_map_list(flavor, image_meta)
         mem_list = _numa_get_mem_map_list(flavor, image_meta)
+        l3_cache_list = _numa_get_l3_cache_list(flavor, image_meta)
 
         # If one property list is specified both must be
         if ((cpu_list is None and mem_list is not None) or
@@ -1228,7 +1267,7 @@ def numa_get_constraints(flavor, image_meta):
                 nodes, flavor)
         else:
             numa_topology = _numa_get_constraints_manual(
-                nodes, flavor, cpu_list, mem_list)
+                nodes, flavor, cpu_list, mem_list, l3_cache_list)
 
         # We currently support same pagesize for all cells.
         [setattr(c, 'pagesize', pagesize) for c in numa_topology.cells]
@@ -1360,10 +1399,11 @@ def numa_usage_from_instances(host, instances, free=False):
     for hostcell in host.cells:
         memory_usage = hostcell.memory_usage
         cpu_usage = hostcell.cpu_usage
+        l3_cache_usage = hostcell.l3_cache_usage
 
         newcell = objects.NUMACell(
             id=hostcell.id, cpuset=hostcell.cpuset, memory=hostcell.memory,
-            cpu_usage=0, memory_usage=0, mempages=hostcell.mempages,
+            cpu_usage=0, memory_usage=0, l3_cache_usage=0, mempages=hostcell.mempages,
             pinned_cpus=hostcell.pinned_cpus, siblings=hostcell.siblings)
 
         for instance in instances:
@@ -1371,6 +1411,8 @@ def numa_usage_from_instances(host, instances, free=False):
                 if instancecell.id == hostcell.id:
                     memory_usage = (
                             memory_usage + sign * instancecell.memory)
+                    l3_cache_usage = (
+                            l3_cache_usage + sign * instancecell.l3_cache) 
                     cpu_usage_diff = len(instancecell.cpuset)
                     if (instancecell.cpu_thread_policy ==
                             fields.CPUThreadAllocationPolicy.ISOLATE and
@@ -1398,6 +1440,7 @@ def numa_usage_from_instances(host, instances, free=False):
 
         newcell.cpu_usage = max(0, cpu_usage)
         newcell.memory_usage = max(0, memory_usage)
+        newcell.l3_cache_usage = max(0, l3_cache_usage)
         cells.append(newcell)
 
     return objects.NUMATopology(cells=cells)

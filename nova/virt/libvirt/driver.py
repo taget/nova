@@ -3692,6 +3692,7 @@ class LibvirtDriver(driver.ComputeDriver):
                 guest_cell.id = instance_cell.id
                 guest_cell.cpus = instance_cell.cpuset
                 guest_cell.memory = instance_cell.memory * units.Ki
+                guest_cell.l3cache = instance_cell.l3_cache 
 
                 # The vhost-user network backend requires file backed
                 # guest memory (ie huge pages) to be marked as shared
@@ -5102,6 +5103,9 @@ class LibvirtDriver(driver.ComputeDriver):
                            arch.PPC64LE): MIN_LIBVIRT_NUMA_VERSION_PPC}
         caps = self._host.get_capabilities()
         is_supported = False
+        # Fix me (eliqiao): need to upgrade qemu to 2.1 to support hugepage
+        # return True for test libvirt xml
+        # return True
         for archs, libvirt_ver in support_matrix.items():
             if ((caps.host.cpu.arch in archs) and
                     self._host.has_min_version(libvirt_ver,
@@ -5164,10 +5168,11 @@ class LibvirtDriver(driver.ComputeDriver):
                         reserved=_get_reserved_memory_for_cell(
                             self, cell.id, pages.size))
                     for pages in cell.mempages]
-
             cell = objects.NUMACell(id=cell.id, cpuset=cpuset,
                                     memory=cell.memory / units.Ki,
                                     cpu_usage=0, memory_usage=0,
+                                    l3_cache=cell.l3_cache,
+                                    l3_cache_usage=0,
                                     siblings=siblings,
                                     pinned_cpus=set([]),
                                     mempages=mempages)
