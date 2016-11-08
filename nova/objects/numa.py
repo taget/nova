@@ -40,7 +40,8 @@ class NUMACell(base.NovaObject):
     # Version 1.0: Initial version
     # Version 1.1: Added pinned_cpus and siblings fields
     # Version 1.2: Added mempages field
-    VERSION = '1.2'
+    # Version 1.3: Added l3_cache and l3_cache_usage field
+    VERSION = '1.3'
 
     fields = {
         'id': fields.IntegerField(read_only=True),
@@ -51,6 +52,8 @@ class NUMACell(base.NovaObject):
         'pinned_cpus': fields.SetOfIntegersField(),
         'siblings': fields.ListOfSetsOfIntegersField(),
         'mempages': fields.ListOfObjectsField('NUMAPagesTopology'),
+        'l3_cache': fields.IntegerField(default=0),
+        'l3_cache_usage': fields.IntegerField(default=0),
         }
 
     def __eq__(self, other):
@@ -75,6 +78,13 @@ class NUMACell(base.NovaObject):
     @property
     def avail_memory(self):
         return self.memory - self.memory_usage
+
+    @property
+    def avail_l3_cache(self):
+        if self.l3_cache_usage > 0:
+            return 0
+        else:
+            return self.l3_cache
 
     def pin_cpus(self, cpus):
         if cpus - self.cpuset:
@@ -117,6 +127,9 @@ class NUMACell(base.NovaObject):
             'mem': {
                 'total': self.memory,
                 'used': self.memory_usage},
+            'l3_cache': {
+                'total': self.l3_cache,
+                'used': self.l3_cache_usage},
             'cpu_usage': self.cpu_usage}
 
     @classmethod
@@ -126,9 +139,12 @@ class NUMACell(base.NovaObject):
         cpu_usage = data_dict.get('cpu_usage', 0)
         memory = data_dict.get('mem', {}).get('total', 0)
         memory_usage = data_dict.get('mem', {}).get('used', 0)
+        l3_cache = data_dict.get('l3_cache', {}).get('total', 0)
+        l3_cache_usage = data_dict.get('l3_cache', {}).get('used', 0)
         cell_id = data_dict.get('id')
         return cls(id=cell_id, cpuset=cpuset, memory=memory,
                    cpu_usage=cpu_usage, memory_usage=memory_usage,
+                   l3_cache=l3_cache, l3_cache_usage=l3_cache_usage,
                    mempages=[], pinned_cpus=set([]), siblings=[])
 
     def can_fit_hugepages(self, pagesize, memory):
@@ -193,7 +209,8 @@ class NUMATopology(base.NovaObject):
     # Version 1.0: Initial version
     # Version 1.1: Update NUMACell to 1.1
     # Version 1.2: Update NUMACell to 1.2
-    VERSION = '1.2'
+    # Version 1.3: Update NUMACell to 1.3
+    VERSION = '1.3'
 
     fields = {
         'cells': fields.ListOfObjectsField('NUMACell'),

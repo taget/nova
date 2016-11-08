@@ -30,12 +30,15 @@ class InstanceNUMACell(base.NovaObject,
     # Version 1.1: Add pagesize field
     # Version 1.2: Add cpu_pinning_raw and topology fields
     # Version 1.3: Add cpu_policy and cpu_thread_policy fields
-    VERSION = '1.3'
+    # Version 1.4: Add l3_cache
+    VERSION = '1.4'
 
     def obj_make_compatible(self, primitive, target_version):
         super(InstanceNUMACell, self).obj_make_compatible(primitive,
                                                         target_version)
         target_version = versionutils.convert_version_to_tuple(target_version)
+        if target_version < (1, 4):
+            primitive.pop('l3_cache', None)
         if target_version < (1, 3):
             primitive.pop('cpu_policy', None)
             primitive.pop('cpu_thread_policy', None)
@@ -44,6 +47,7 @@ class InstanceNUMACell(base.NovaObject,
         'id': obj_fields.IntegerField(),
         'cpuset': obj_fields.SetOfIntegersField(),
         'memory': obj_fields.IntegerField(),
+        'l3_cache': obj_fields.IntegerField(default=0),
         'pagesize': obj_fields.IntegerField(nullable=True),
         'cpu_topology': obj_fields.ObjectField('VirtCPUTopology',
                                                nullable=True),
@@ -72,6 +76,8 @@ class InstanceNUMACell(base.NovaObject,
         if 'cpu_thread_policy' not in kwargs:
             self.cpu_thread_policy = None
             self.obj_reset_changes(['cpu_thread_policy'])
+        if 'l3_cache' not in kwargs:
+            self.l3_cache = 0
 
     def __len__(self):
         return len(self.cpuset)
@@ -82,6 +88,7 @@ class InstanceNUMACell(base.NovaObject,
         return {'cpus': hardware.format_cpu_spec(self.cpuset,
                                                  allow_ranges=False),
                 'mem': {'total': self.memory},
+                'l3_cache': {'total': self.l3_cache},
                 'id': self.id,
                 'pagesize': self.pagesize}
 
@@ -91,10 +98,11 @@ class InstanceNUMACell(base.NovaObject,
         # _legacy_from_dict_ to the future to avoid confusing.
         cpuset = hardware.parse_cpu_spec(data_dict.get('cpus', ''))
         memory = data_dict.get('mem', {}).get('total', 0)
+        l3_cache = data_dict.get('l3_cache', {}).get('total', 0)
         cell_id = data_dict.get('id')
         pagesize = data_dict.get('pagesize')
         return cls(id=cell_id, cpuset=cpuset,
-                   memory=memory, pagesize=pagesize)
+                   memory=memory, l3_cache=l3_cache, pagesize=pagesize)
 
     @property
     def siblings(self):
@@ -140,7 +148,8 @@ class InstanceNUMATopology(base.NovaObject,
     # Version 1.0: Initial version
     # Version 1.1: Takes into account pagesize
     # Version 1.2: InstanceNUMACell 1.2
-    VERSION = '1.2'
+    # Version 1.3: InstanceNUMACell 1.4
+    VERSION = '1.3'
 
     fields = {
         # NOTE(danms): The 'id' field is no longer used and should be

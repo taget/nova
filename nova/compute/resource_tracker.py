@@ -515,7 +515,6 @@ class ResourceTracker(object):
         # just force it to empty string
         if "cpu_info" not in resources or resources["cpu_info"] is None:
             resources["cpu_info"] = ''
-
         self._verify_resources(resources)
 
         self._report_hypervisor_resource_view(resources)

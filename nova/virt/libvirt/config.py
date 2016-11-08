@@ -152,6 +152,7 @@ class LibvirtConfigCapsNUMACell(LibvirtConfigObject):
         self.memory = 0
         self.mempages = []
         self.cpus = []
+	self.l3_cache = 0
 
     def parse_dom(self, xmldoc):
         super(LibvirtConfigCapsNUMACell, self).parse_dom(xmldoc)
@@ -169,6 +170,8 @@ class LibvirtConfigCapsNUMACell(LibvirtConfigObject):
                     cpu = LibvirtConfigCapsNUMACPU()
                     cpu.parse_dom(c2)
                     self.cpus.append(cpu)
+            elif c.tag == "l3_cache":
+                self.l3_cache = int(c.text)
 
     def format_dom(self):
         cell = super(LibvirtConfigCapsNUMACell, self).format_dom()
@@ -506,6 +509,7 @@ class LibvirtConfigGuestCPUNUMACell(LibvirtConfigObject):
         self.cpus = None
         self.memory = None
         self.memAccess = None
+        self.l3cache = None
 
     def parse_dom(self, xmldoc):
         if xmldoc.get("id") is not None:
@@ -524,6 +528,10 @@ class LibvirtConfigGuestCPUNUMACell(LibvirtConfigObject):
         if self.cpus is not None:
             cell.set("cpus",
                      hardware.format_cpu_spec(self.cpus))
+
+	#eli CAT
+        if self.l3cache is not None:
+	    cell.set("l3cache", str(self.l3cache))
         if self.memory is not None:
             cell.set("memory", str(self.memory))
         if self.memAccess is not None:
