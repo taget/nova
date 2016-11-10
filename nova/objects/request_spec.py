@@ -38,7 +38,8 @@ class RequestSpec(base.NovaObject):
     # Version 1.4: ImageMeta version 1.7
     # Version 1.5: Added get_by_instance_uuid(), create(), save()
     # Version 1.6: Added requested_destination
-    VERSION = '1.6'
+    # Version 1.7: Numa version bump
+    VERSION = '1.7'
 
     fields = {
         'id': fields.IntegerField(),

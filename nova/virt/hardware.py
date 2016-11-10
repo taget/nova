@@ -890,6 +890,9 @@ def _numa_fit_instance_cell(host_cell, instance_cell, limit_cell=None):
                    'actual': len(host_cell.cpuset)})
         return
 
+    if instance_cell.l3_cache > host_cell.avail_l3_cache:
+        return
+
     if instance_cell.cpu_pinning_requested:
         new_instance_cell = _numa_fit_instance_cell_with_pinning(
             host_cell, instance_cell)
@@ -1404,7 +1407,8 @@ def numa_usage_from_instances(host, instances, free=False):
         newcell = objects.NUMACell(
             id=hostcell.id, cpuset=hostcell.cpuset, memory=hostcell.memory,
             cpu_usage=0, memory_usage=0, l3_cache_usage=0, mempages=hostcell.mempages,
-            pinned_cpus=hostcell.pinned_cpus, siblings=hostcell.siblings)
+            pinned_cpus=hostcell.pinned_cpus, siblings=hostcell.siblings,
+            l3_cache=hostcell.l3_cache)
 
         for instance in instances:
             for instancecell in instance.cells:
@@ -1498,7 +1502,8 @@ def instance_topology_from_instance(instance):
                     pagesize=cell.get('pagesize'),
                     cpu_pinning=cell.get('cpu_pinning_raw'),
                     cpu_policy=cell.get('cpu_policy'),
-                    cpu_thread_policy=cell.get('cpu_thread_policy'))
+                    cpu_thread_policy=cell.get('cpu_thread_policy'),
+                    l3_cache=cell.get('l3_cache'))
                          for cell in dict_cells]
                 instance_numa_topology = objects.InstanceNUMATopology(
                     cells=cells)
