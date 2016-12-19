@@ -1149,7 +1149,11 @@ def _numa_get_constraints_auto(nodes, flavor):
         (flavor.memory_mb % nodes) > 0):
         raise exception.ImageNUMATopologyAsymmetric()
 
-    l3_cache = flavor.get('extra_specs', {}).get('hw:l3_cache', 5636) 
+    l3_cache = flavor.get('extra_specs', {}).get('hw:l3_cache')
+    if l3_cache is not None:
+        l3_cache = int(l3_cache)
+    else:
+        l3_cache = 0
     cells = []
     for node in range(nodes):
         ncpus = int(flavor.vcpus / nodes)
